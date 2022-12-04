@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
+	"os"
 
 	"tftp"
 	"tftp/packets"
@@ -13,9 +13,9 @@ import (
 
 type Server struct {
 	// Retries a number of times to wait for packet acknowledgement
-	Retries uint8
-	Payload []byte
-	Timeout time.Duration
+	//Retries uint8
+	//Payload []byte
+	//Timeout time.Duration
 }
 
 func (s *Server) Listen(addr string) error {
@@ -44,20 +44,28 @@ func (s *Server) Serve(cn net.PacketConn) error {
 	// assuming all request are read requests
 
 	for {
-		buf := make([]byte, 0, tftp.DatagramSize)
-		_, addr, err := cn.ReadFrom(buf)
+		buf := make([]byte, tftp.DatagramSize)
+
+		n, addr, err := cn.ReadFrom(buf)
+		fmt.Printf("%d bytes came from %s \n", n, addr)
+		fmt.Printf("raw: %08b\n", buf[:n])
 		if err != nil {
-			log.Printf("ERROR: %s", err)
+			log.Printf("ERROR 1: %s", err)
 			return err
+		}
+
+		if n == 0 {
+			continue
 		}
 
 		rrq := packets.ReadReq{}
 		err = rrq.UnmarshalBinary(buf)
 		if err != nil {
-			log.Printf("ERROR: %s", err)
+			log.Printf("ERROR 2: %s", err)
 			continue
 		}
 
+		fmt.Println("handling ...")
 		go s.handle(addr.String(), rrq)
 	}
 }
@@ -78,55 +86,79 @@ func (s *Server) handle(addr string, rrq packets.ReadReq) {
 		}
 	}()
 
-	ackPkt := packets.Ack(0)
-	errPkt := packets.Err{}
-	dataPkt := packets.Data{Payload: bytes.NewReader(s.Payload)}
+	// ackPkt := packets.Ack(0)
+	// errPkt := packets.Err{}
 
-	buf := make([]byte, tftp.DatagramSize)
+	//dir, err := os.Getwd()
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	fileBytes, err := os.ReadFile("lorem.txt")
+	if err != nil {
+		fmt.Printf("err %v \n", err)
+		return
+	}
+	rd := bytes.NewReader(fileBytes)
 
-nextpacket:
-	for n := tftp.DatagramSize; n == tftp.DatagramSize; {
-		data, err := dataPkt.MarshalBinary()
+	blockN := uint16(1)
+	for {
+		// every packet should be acknowledged
+		buf := make([]byte, tftp.BlockSize)
+		//io.CopyN()
+		n, err := rd.Read(buf)
 		if err != nil {
-			log.Printf("[%s] preparing data packet: %v", addr, err)
+			fmt.Println(err)
 			return
 		}
 
-	retry:
-		for i := s.Retries; i > 0; i-- {
-			n, err = conn.Write(data) // send the data packet
-			if err != nil {
-				log.Printf("[%s] write: %v", addr, err)
-				return
-			}
-
-			// wait for the client's ACK packet
-			_ = conn.SetReadDeadline(time.Now().Add(s.Timeout))
-			_, err = conn.Read(buf)
-			if err != nil {
-				if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
-					continue retry
-				}
-				log.Printf("[%s] waiting for ACK: %v", addr, err)
-				return
-			}
-
-			switch {
-			case ackPkt.UnmarshalBinary(buf) == nil:
-				if uint16(ackPkt) == dataPkt.Block {
-					// received ACK; send next data packet
-					continue nextpacket
-				}
-			case errPkt.UnmarshalBinary(buf) == nil:
-				log.Printf("[%s] received error: %v",
-					addr, errPkt.Message)
-				return
-			default:
-				log.Printf("[%s] bad packet", addr)
-			}
+		dataPkt := packets.Data{
+			Block:   blockN,
+			Payload: bytes.NewReader(buf[:n]),
 		}
-		log.Printf("[%s] exhausted retries", addr)
-		return
+		//fmt.Println("sending:", string(buf[:n]))
+
+		b, err := dataPkt.MarshalBinary()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// use conn.SetDeadline()
+		// check for os.ErrDeadlineExceeded
+		// extend deadline
+		fmt.Printf("sending block %d from %s to addr: %s \n", blockN, conn.LocalAddr(), conn.RemoteAddr())
+		// fmt.Printf("raw bytes: %b \n", b)
+		f, err := conn.Write(b)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("sent %d bytes to client\n", f)
+
+		resBuf := make([]byte, 1000)
+		g, err := conn.Read(resBuf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println("--------------------------------------------------")
+		fmt.Printf("received %d bytes from %s to %s:\n", g, conn.RemoteAddr(), conn.LocalAddr())
+		fmt.Printf("raw %b \n", resBuf[:g])
+		var ack packets.Ack
+		ackErr := ack.UnmarshalBinary(resBuf[:g])
+		if ackErr != nil {
+			fmt.Printf("unexpected payload %s, Acknowledge expected \n", string(resBuf[:g]))
+			return
+		}
+		fmt.Printf("received ACK from client \n")
+
+		if n < tftp.BlockSize {
+			fmt.Println(">>>>>>>>>>>>>>>last packet was sent")
+			return
+		}
+		blockN++
 	}
-	log.Printf("[%s] sent %d blocks", addr, dataPkt.Block)
+
 }

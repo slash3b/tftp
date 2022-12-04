@@ -2,7 +2,6 @@ package server_test
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
 	"testing"
 
@@ -17,13 +16,13 @@ import (
 func TestServer(t *testing.T) {
 	flag.Parse()
 
-	p, err := ioutil.ReadFile("./payload")
+	// p, err := ioutil.ReadFile("./payload")
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 
-	s := server.Server{Payload: p}
+	s := server.Server{}
 
 	log.Fatal(s.Listen("127.0.0.1:8080"))
 }

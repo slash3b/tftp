@@ -4,13 +4,14 @@ const DatagramSize = 516
 const BlockSize = DatagramSize - 4
 
 // note: each block must be acknowledged before next comes in
-// note: data block that less than 512 bytes means the last block
+// note: data block that is less than 512 bytes means the last block
 const DataBlockSize = 512
 
 type TFTPBlock struct {
 	// Header bears opcode
-	Header
-	DataBlockSize
+	HeaderOpCode uint16
+	Data         []byte
+	// DataBlockSize
 }
 
 /*
@@ -31,12 +32,13 @@ RRQ
 type OpCode uint16
 
 /*
-   opcode  operation
-           1     Read request (RRQ)
-           2     Write request (WRQ)
-           3     Data (DATA)
-           4     Acknowledgment (ACK)
-           5     Error (ERROR)
+opcode  operation
+
+	1     Read request (RRQ)
+	2     Write request (WRQ)
+	3     Data (DATA)
+	4     Acknowledgment (ACK)
+	5     Error (ERROR)
 */
 const (
 	OpRRQ OpCode = iota + 1 // RRQ stands for read request

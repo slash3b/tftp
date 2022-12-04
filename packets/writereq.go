@@ -10,7 +10,7 @@ import (
 )
 
 /*
-Read Request packet:
+Write Request packet:
 
    2 bytes             1 byte          1 byte
    ┌───────┬──────────┬──────┬────────┬──────┐
@@ -19,12 +19,12 @@ Read Request packet:
             n bytes           n bytes
 */
 
-type ReadReq struct {
+type WriteReq struct {
 	Filename string
 	Mode     tftp.TransferMode
 }
 
-func (r *ReadReq) MarshalBinary() ([]byte, error) {
+func (r *WriteReq) MarshalBinary() ([]byte, error) {
 	dataBytesLen := 2 + len(r.Filename) + 1 + len(r.Mode) + 1
 	data := make([]byte, 0, dataBytesLen)
 
@@ -58,7 +58,7 @@ func (r *ReadReq) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (q *ReadReq) UnmarshalBinary(p []byte) error {
+func (q *WriteReq) UnmarshalBinary(p []byte) error {
 	r := bytes.NewBuffer(p)
 
 	var code tftp.OpCode
@@ -88,7 +88,7 @@ func (q *ReadReq) UnmarshalBinary(p []byte) error {
 	}
 
 	mode = strings.TrimRight(mode, "\x00") // remove the 0-byte
-	if len(mode) == 0 {
+	if len(q.Mode) == 0 {
 		return errors.New("invalid RRQ")
 	}
 

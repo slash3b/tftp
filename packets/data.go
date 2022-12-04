@@ -30,13 +30,14 @@ func (d *Data) MarshalBinary() ([]byte, error) {
 	b := bytes.NewBuffer(buf)
 
 	// write operation
-	err := binary.Write(b, binary.BigEndian, tftp.OpRRQ)
+	err := binary.Write(b, binary.BigEndian, tftp.OpData)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	// write block number
-	d.Block++
+	// d.Block // decide later where and how to increase blockNumber
+	// we can do it here if we reuse that struct which makes sense
 	err = binary.Write(b, binary.BigEndian, d.Block)
 	if err != nil {
 		return []byte{}, err

@@ -18,24 +18,22 @@ import (
 
 type Ack uint16
 
-func (a Ack) MarshalBinary() ([]byte, error) {
-	bufCap := 2 + 2 // operation code + block number
+// question: do we really need to unmarshall this?
+// looks like it can be generated once
+func (a *Ack) MarshalBinary() ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 4))
 
-	b := new(bytes.Buffer)
-
-	b.Grow(bufCap)
-
-	err := binary.Write(b, binary.BigEndian, tftp.OpAck) // write operation code
+	err := binary.Write(buf, binary.BigEndian, tftp.OpAck)
 	if err != nil {
 		return nil, err
 	}
 
-	err = binary.Write(b, binary.BigEndian, a) // write block number
+	err = binary.Write(buf, binary.BigEndian, a)
 	if err != nil {
 		return nil, err
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 
 }
 
