@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -11,12 +12,7 @@ import (
 	"tftp/packets"
 )
 
-type Server struct {
-	// Retries a number of times to wait for packet acknowledgement
-	//Retries uint8
-	//Payload []byte
-	//Timeout time.Duration
-}
+type Server struct{}
 
 func (s *Server) Listen(addr string) error {
 	conn, err := net.ListenPacket("udp", addr)
@@ -37,18 +33,10 @@ func (s *Server) Listen(addr string) error {
 }
 
 func (s *Server) Serve(cn net.PacketConn) error {
-
-	// basically verify that server state is valid ??? wtf ?
-	// take all request
-
-	// assuming all request are read requests
-
 	for {
 		buf := make([]byte, tftp.DatagramSize)
 
 		n, addr, err := cn.ReadFrom(buf)
-		fmt.Printf("%d bytes came from %s \n", n, addr)
-		fmt.Printf("raw: %08b\n", buf[:n])
 		if err != nil {
 			log.Printf("ERROR 1: %s", err)
 			return err
@@ -58,19 +46,47 @@ func (s *Server) Serve(cn net.PacketConn) error {
 			continue
 		}
 
-		rrq := packets.ReadReq{}
-		err = rrq.UnmarshalBinary(buf)
+		var opcode tftp.OpCode
+
+		r := bytes.NewReader(buf[:n])
+		err = binary.Read(r, binary.BigEndian, &opcode)
 		if err != nil {
-			log.Printf("ERROR 2: %s", err)
-			continue
+			return err
+		}
+
+		switch opcode {
+		case tftp.OpWRQ:
+			wrq := packets.WriteReq{}
+			err = wrq.UnmarshalBinary(buf[:n])
+			if err != nil {
+				log.Printf("write err: %s", err)
+				continue
+			}
+			go s.handleWrite(addr.String(), wrq)
+		case tftp.OpRRQ:
+			rrq := packets.ReadReq{}
+			err = rrq.UnmarshalBinary(buf[:n])
+			if err != nil {
+				log.Printf("read err: %s", err)
+				continue
+			}
+			go s.handleRead(addr.String(), rrq)
+		default:
+			n, err = cn.WriteTo([]byte{}, addr)
+			if err != nil {
+				log.Printf("err %s, %d bytes sent back to client", err, n)
+			}
 		}
 
 		fmt.Println("handling ...")
-		go s.handle(addr.String(), rrq)
 	}
 }
 
-func (s *Server) handle(addr string, rrq packets.ReadReq) {
+func (s *Server) handleWrite(addr string, wrq packets.WriteReq) {
+
+}
+
+func (s *Server) handleRead(addr string, rrq packets.ReadReq) {
 	log.Printf("[%s] requested file: %s", addr, rrq.Filename)
 
 	conn, err := net.Dial("udp", addr)
@@ -86,27 +102,20 @@ func (s *Server) handle(addr string, rrq packets.ReadReq) {
 		}
 	}()
 
-	// ackPkt := packets.Ack(0)
-	// errPkt := packets.Err{}
-
-	//dir, err := os.Getwd()
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	fileBytes, err := os.ReadFile("lorem.txt")
+	fileBytes, err := os.ReadFile(rrq.Filename)
 	if err != nil {
 		fmt.Printf("err %v \n", err)
 		return
 	}
-	rd := bytes.NewReader(fileBytes)
+
+	fileReader := bytes.NewReader(fileBytes)
+
+	// fixme(1): implement retries
 
 	blockN := uint16(1)
 	for {
-		// every packet should be acknowledged
-		buf := make([]byte, tftp.BlockSize)
-		//io.CopyN()
-		n, err := rd.Read(buf)
+		buf := make([]byte, tftp.DataBlockSize)
+		n, err := fileReader.Read(buf)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -116,7 +125,6 @@ func (s *Server) handle(addr string, rrq packets.ReadReq) {
 			Block:   blockN,
 			Payload: bytes.NewReader(buf[:n]),
 		}
-		//fmt.Println("sending:", string(buf[:n]))
 
 		b, err := dataPkt.MarshalBinary()
 		if err != nil {
@@ -127,13 +135,14 @@ func (s *Server) handle(addr string, rrq packets.ReadReq) {
 		// use conn.SetDeadline()
 		// check for os.ErrDeadlineExceeded
 		// extend deadline
+
 		fmt.Printf("sending block %d from %s to addr: %s \n", blockN, conn.LocalAddr(), conn.RemoteAddr())
-		// fmt.Printf("raw bytes: %b \n", b)
 		f, err := conn.Write(b)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
+
 		fmt.Printf("sent %d bytes to client\n", f)
 
 		resBuf := make([]byte, 1000)
@@ -154,11 +163,11 @@ func (s *Server) handle(addr string, rrq packets.ReadReq) {
 		}
 		fmt.Printf("received ACK from client \n")
 
-		if n < tftp.BlockSize {
-			fmt.Println(">>>>>>>>>>>>>>>last packet was sent")
+		if n < tftp.DataBlockSize {
+			fmt.Println(">>>>>>>>>>>>>>>last packet was sent to Client. Terminating.")
 			return
 		}
+
 		blockN++
 	}
-
 }
