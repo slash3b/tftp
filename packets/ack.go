@@ -8,18 +8,18 @@ import (
 	"tftp"
 )
 
-/*
-   2 bytes
-   ┌───────┬──────────┐
-   │OpCode │ Block #  │
-   └───────┴──────────┘
-             2 bytes
-*/
+//	Layout:
+//
+//	2 bytes
+//
+//	┌───────┬──────────┐
+//	│OpCode │ Block #  │
+//	└───────┴──────────┘
+//		2 bytes
+//
 
 type Ack uint16
 
-// question: do we really need to unmarshall this?
-// looks like it can be generated once
 func (a *Ack) MarshalBinary() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 4))
 
@@ -34,11 +34,11 @@ func (a *Ack) MarshalBinary() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-
 }
 
 func (a *Ack) UnmarshalBinary(p []byte) error {
 	var code tftp.OpCode
+
 	r := bytes.NewReader(p)
 
 	err := binary.Read(r, binary.BigEndian, &code) // read operation code

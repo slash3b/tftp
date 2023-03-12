@@ -10,3 +10,5 @@ TODO:
 - [ ] [rfc2347](https://www.rfc-editor.org/rfc/rfc2347)
 - [ ] [rfc2348](https://www.rfc-editor.org/rfc/rfc2348)
 - [ ] [rfc2349](https://www.rfc-editor.org/rfc/rfc2349)
+
+- only binary transfer mode is supported

@@ -43,7 +43,7 @@ func (d *Data) MarshalBinary() ([]byte, error) {
 		return []byte{}, err
 	}
 
-	_, err = io.CopyN(b, d.Payload, tftp.BlockSize)
+	_, err = io.CopyN(b, d.Payload, tftp.DataBlockSize)
 	if err != nil && err != io.EOF {
 		return []byte{}, err
 	}

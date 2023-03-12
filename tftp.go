@@ -1,17 +1,17 @@
 package tftp
 
-const DatagramSize = 516
-const BlockSize = DatagramSize - 4
+const (
+	DatagramSize     = 516
+	HeaderOpCodeSize = 4
+	DataBlockSize    = DatagramSize - HeaderOpCodeSize
+)
 
 // note: each block must be acknowledged before next comes in
 // note: data block that is less than 512 bytes means the last block
-const DataBlockSize = 512
 
 type TFTPBlock struct {
-	// Header bears opcode
 	HeaderOpCode uint16
 	Data         []byte
-	// DataBlockSize
 }
 
 /*

@@ -38,7 +38,6 @@ func (s *Server) Serve(cn net.PacketConn) error {
 
 		n, addr, err := cn.ReadFrom(buf)
 		if err != nil {
-			log.Printf("ERROR 1: %s", err)
 			return err
 		}
 
@@ -136,14 +135,11 @@ func (s *Server) handleRead(addr string, rrq packets.ReadReq) {
 		// check for os.ErrDeadlineExceeded
 		// extend deadline
 
-		fmt.Printf("sending block %d from %s to addr: %s \n", blockN, conn.LocalAddr(), conn.RemoteAddr())
 		f, err := conn.Write(b)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-
-		fmt.Printf("sent %d bytes to client\n", f)
 
 		resBuf := make([]byte, 1000)
 		g, err := conn.Read(resBuf)
@@ -152,9 +148,6 @@ func (s *Server) handleRead(addr string, rrq packets.ReadReq) {
 			return
 		}
 
-		fmt.Println("--------------------------------------------------")
-		fmt.Printf("received %d bytes from %s to %s:\n", g, conn.RemoteAddr(), conn.LocalAddr())
-		fmt.Printf("raw %b \n", resBuf[:g])
 		var ack packets.Ack
 		ackErr := ack.UnmarshalBinary(resBuf[:g])
 		if ackErr != nil {
