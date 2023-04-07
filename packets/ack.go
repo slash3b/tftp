@@ -8,38 +8,30 @@ import (
 	"tftp"
 )
 
-//	Layout:
+// Ack layout:
 //
-//	2 bytes
-//
+//	 2 bytes
 //	┌───────┬──────────┐
 //	│OpCode │ Block #  │
 //	└───────┴──────────┘
-//		2 bytes
+//			 2 bytes
 //
 
 type Ack uint16
 
 func (a *Ack) MarshalBinary() ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 4))
+	b := make([]byte, 4)
 
-	err := binary.Write(buf, binary.BigEndian, tftp.OpAck)
-	if err != nil {
-		return nil, err
-	}
+	binary.BigEndian.PutUint16(b, uint16(tftp.OpAck))
+	binary.BigEndian.PutUint16(b[2:], uint16(*a))
 
-	err = binary.Write(buf, binary.BigEndian, a)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return b, nil
 }
 
 func (a *Ack) UnmarshalBinary(p []byte) error {
-	var code tftp.OpCode
-
 	r := bytes.NewReader(p)
+
+	var code tftp.OpCode
 
 	err := binary.Read(r, binary.BigEndian, &code) // read operation code
 	if err != nil {
